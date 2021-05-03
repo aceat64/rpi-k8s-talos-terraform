@@ -1,0 +1,87 @@
+version: v1alpha1
+debug: false
+persist: true # Indicates whether to pull the machine config upon every boot.
+machine:
+  type: controlplane
+  token: {{MACHINE_TOKEN}}
+  ca:
+    crt: {{MACHINE_CA_CERT}}
+    key: {{MACHINE_CA_KEY}}
+  kubelet:
+    extraArgs:
+      rotate-server-certificates: true
+  network:
+    hostname: {{CONTROL_HOSTNAME}}
+    interfaces:
+      - interface: eth0
+        cidr: {{CONTROL_IP}}/24
+        routes:
+          - network: 0.0.0.0/0
+            gateway: {{NET_GATEWAY}}
+        vip:
+          ip: {{CLUSTER_VIP}}
+    nameservers:
+      - {{NET_NAMESERVER}}
+  install:
+    disk: /dev/mmcblk0
+    image: ghcr.io/talos-systems/installer:v0.10.0
+    bootloader: true # Indicates if a bootloader should be installed.
+    wipe: false # Indicates if the installation disk should be wiped at installation time.
+    extraKernelArgs:
+      - talos.platform=metal
+      - talos.board=rpi_4
+# Optionally, pull-through cache for the container image registries will help speed things up.
+# See the Talos docs for more info: https://www.talos.dev/docs/v0.10/guides/configuring-pull-through-cache
+#  registries:
+#    mirrors:
+#      docker.io:
+#        endpoints:
+#          - http://192.168.57.2:5000
+#      k8s.gcr.io:
+#        endpoints:
+#          - http://192.168.57.2:5001
+#      quay.io:
+#        endpoints:
+#          - http://192.168.57.2:5002
+#      gcr.io:
+#        endpoints:
+#          - http://192.168.57.2:5003
+#      ghcr.io:
+#        endpoints:
+#          - http://192.168.57.2:5004
+cluster:
+  controlPlane:
+    endpoint: https://{{CLUSTER_VIP}}:6443
+  clusterName: {{CLUSTER_NAME}}
+  network:
+    dnsDomain: cluster.local
+    podSubnets:
+      - 10.244.0.0/16
+    serviceSubnets:
+      - 10.96.0.0/12
+  token: {{CLUSTER_TOKEN}} # The [bootstrap token](https://kubernetes.io/docs/reference/access-authn-authz/bootstrap-tokens/) used to join the cluster.
+  aescbcEncryptionSecret: {{AESCBC_KEY}} # The key used for the [encryption of secret data at rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/).
+  # The base64 encoded root certificate authority used by Kubernetes.
+  ca:
+    crt: {{CLUSTER_CA_CERT}}
+    key: {{CLUSTER_CA_KEY}}
+  # The base64 encoded aggregator certificate authority used by Kubernetes for front-proxy certificate generation.
+  aggregatorCA:
+    crt: {{AGG_CA_CERT}}
+    key: {{AGG_CA_KEY}}
+  # The base64 encoded private key for service account token generation.
+  serviceAccount:
+    key: {{SERVICE_ACCOUNT_KEY}}
+  apiServer:
+    certSANs:
+      - {{CLUSTER_VIP}}
+      - {{CONTROL_IP}}
+  proxy:
+    extraArgs:
+      metrics-bind-address: "0.0.0.0:10249"
+  etcd:
+    ca:
+      crt: {{ETCD_CA_CERT}}
+      key: {{ETCD_CA_KEY}}
+  extraManifests:
+    - https://raw.githubusercontent.com/alex1989hu/kubelet-serving-cert-approver/main/deploy/standalone-install.yaml

@@ -1,0 +1,56 @@
+###
+# WARNING: THIS WILL DELETE DATA!
+# Read through and understand what this manifest does before you apply it!
+# You may need to change the DISK_TO_WIPE variable.
+###
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: zapper
+spec:
+  selector:
+    matchLabels:
+      name: zapper
+  template:
+    metadata:
+      labels:
+        name: zapper
+    spec:
+      containers:
+        - name: zapper
+          image: rook/ceph:v1.6.0
+          volumeMounts:
+          - mountPath: /rook
+            name: rook-volume
+          command:
+          - /bin/sh
+          - -c
+          - |
+            DISK_TO_WIPE="/dev/sda"
+            if [[ -b "$DISK_TO_WIPE" ]]
+            then
+              echo "Zapping $DISK_TO_WIPE"
+              /usr/sbin/sgdisk --zap-all $DISK_TO_WIPE
+              echo "Wiping first 100MB of $DISK_TO_WIPE"
+              dd if=/dev/zero of=$DISK_TO_WIPE bs=1M count=100 oflag=direct,dsync
+            fi
+            ls -la /rook
+            echo "Deleting data from /var/lib/rook on host"
+            rm -rf /rook/*
+            ls -la /rook
+            echo "NUKE COMPLETE"
+            sleep 30d
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            runAsNonRoot: false
+            readOnlyRootFilesystem: false
+      volumes:
+        - name: rook-volume
+          hostPath:
+            path: /var/lib/rook
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
